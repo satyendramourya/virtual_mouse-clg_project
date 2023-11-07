@@ -1,12 +1,12 @@
 import cv2
 import os
 from cvzone.HandTrackingModule import HandDetector
-# import numpy as np
 import pyautogui
+import mediapipe as mp
+import time
 
 # Turning off the failsafe
 pyautogui.FAILSAFE = False
-
 
 # Variables
 folderPath = "slides"
@@ -16,7 +16,7 @@ screen_width, screen_height = pyautogui.size()
 width, height = screen_width, screen_height
 gestureThreshold = 300
 
-# camera Setup
+# Camera Setup
 cap = cv2.VideoCapture(0)
 cap.set(3, width)
 cap.set(4, height)
@@ -26,8 +26,14 @@ ws, hs = int(420 * 1), int(303 * 1)
 # Get the list of presentation images.
 pathImages = sorted(os.listdir(folderPath), key=len)
 
-# Hand detector
+# Hand detector for presentation control
 detector = HandDetector(detectionCon=0.8, maxHands=1)
+
+# Hand detector for volume control
+my_hands = mp.solutions.hands.Hands()
+drawing_utils = mp.solutions.drawing_utils
+
+x1 = y1 = x2 = y2 = 0
 
 # Button action to change slides slowly:
 buttonPressed = False
@@ -56,7 +62,7 @@ while True:
         dy = (cy - prevY) * 5
         prevX, prevY = cx, cy
 
-        # print("dx - ", dx)    slide forward and backward
+        # Presentation control
         if fingers == [1, 1, 1, 1, 1]:
             if dx > 150:  # Swipe right
                 if imageNumber > 0:
@@ -68,29 +74,54 @@ while True:
                     imageNumber += 1
 
             print("image number - ", imageNumber)
-        # else:
-        #     print("(0,0,0,0,0)")
-        #     print("do nothing")
 
-        if fingers == [0, 1, 0, 0, 0]:  # Gesture 3 - Show pointer
-            # Calculate the new cursor position based on the hand's movement
+        # Hand pointer
+        if fingers == [0, 1, 0, 0, 0]:
             new_x = pyautogui.position().x + dx
             new_y = pyautogui.position().y + dy
-
-            # Make sure the cursor stays within the screen bounds
             new_x = min(max(new_x, 0), screen_width)
             new_y = min(max(new_y, 0), screen_height)
+            pyautogui.moveTo(new_x, new_y, duration=0.1)
 
-            # Move the cursor to the new position
-            pyautogui.moveTo(new_x, new_y,  duration=0.1)
-
+        # Mouse click
         if fingers == [0, 1, 1, 0, 0]:
             pyautogui.click(interval=0.1)
             print("clicked")
+            time.sleep(1)  # Wait for 2 seconds after clicking
 
+        # Mouse scroll
         if fingers == [0, 1, 1, 1, 0]:
             print("scrolling - ", dy)
             pyautogui.scroll(dy)
+
+        if fingers == [1, 1, 1, 0, 0]:
+            # Volume control
+            frame_height, frame_width, _ = img.shape
+            rgb_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            output = my_hands.process(rgb_image)
+            hands = output.multi_hand_landmarks
+
+            if hands:
+                for hand in hands:
+                    drawing_utils.draw_landmarks(img, hand)
+                    landmarks = hand.landmark
+                    for id, landmark in enumerate(landmarks):
+                        x = int(landmark.x * frame_width)
+                        y = int(landmark.y * frame_height)
+                        if id == 8:
+                            cv2.circle(img=img, center=(x, y), radius=8, color=(0, 255, 255), thickness=3)
+                            x1 = x
+                            y1 = y
+                        if id == 4:
+                            cv2.circle(img=img, center=(x, y), radius=8, color=(0, 0, 255), thickness=3)
+                            x2 = x
+                            y2 = y
+                    dist = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5 // 4
+                    cv2.line(img, (x1, y1), (x2, y2), color=(0, 255, 0), thickness=5)
+                    if dist > 30:
+                        pyautogui.press("volumeup")
+                    else:
+                        pyautogui.press("volumedown")
 
     if buttonPressed:
         buttonCounter += 1
@@ -110,3 +141,5 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
+
+
