@@ -87,7 +87,7 @@ while True:
         if fingers == [0, 1, 1, 0, 0]:
             pyautogui.click(interval=0.1)
             print("clicked")
-            time.sleep(1)  # Wait for 2 seconds after clicking
+            time.sleep(1)  # Wait for 1 seconds after clicking
 
         # Mouse scroll
         if fingers == [0, 1, 1, 1, 0]:
@@ -141,5 +141,4 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
-
 
